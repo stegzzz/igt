@@ -17,6 +17,7 @@
 #include "framework.h"
 #include "resource.h"
 
+#include <stopwatch.h>
 #include <utils.h>
 
 enum class eStages { WELCOME, INTRODUCTION, INTASK, ENDMSG, END, LAST };
@@ -39,12 +40,27 @@ public:
   std::string getLabel();
 };
 
+/**
+ * @brief read experiment parameters from file
+ *
+ * file contains 7 lines. first four lines contain deck parameters. line 5
+ * contains iti(s) double, line 6 contains fbduration(s) double, line 7 contains
+ * int number of trials. 
+ *
+ * deck parameter lines: label £win pwin £lose plose char
+ * double double double double
+ *
+ * e.g.
+ * A    1   0.5     2   0.7
+ */
 class ExptParams {
-  bool OK=false;
+  bool OK = false;
   int id_;
   std::string f_;
-  std::map < std::string, std::tuple<double, double, double, double>> params;
+  std::map<std::string, std::tuple<double, double, double, double>> params;
   int nt;
+  double iti;        // sec
+  double fbDuration; // sec
   std::string instructions;
 
 public:
@@ -56,8 +72,10 @@ public:
   }
   int getNT() { return nt; }
   int getID() { return id_; }
+  double getITI() { return iti; }
+  double getFBD() { return fbDuration; }
   std::string getInstructions() { return instructions; }
-  };
+};
 
 /**
  * add experiment messages to message map mm and rects to mr
@@ -102,10 +120,9 @@ template <class T> T increment(T stage) {
 
 /**
  * @brief terminates the experiment
- * 
-*/
-void closeDown(); 
-
+ *
+ */
+void closeDown();
 
 /**
  * @brief main experiment logic
@@ -115,5 +132,8 @@ bool experiment();
 
 /**
  * @brief update screen
-*/
+ */
 void render();
+
+void clearScreen(HWND hw, HBRUSH hb);
+void showTrial(HWND hw);

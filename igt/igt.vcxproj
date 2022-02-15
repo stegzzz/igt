@@ -142,6 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\workspace\cpp2020\gutils\include\stopwatch.h" />
     <ClInclude Include="..\..\..\..\workspace\cpp2020\gutils\include\utils.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="igt.h" />
@@ -149,6 +150,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\workspace\cpp2020\gutils\src\stopwatch.cpp" />
     <ClCompile Include="..\..\..\..\workspace\cpp2020\gutils\src\utils.cpp" />
     <ClCompile Include="igt.cpp" />
   </ItemGroup>

@@ -34,9 +34,14 @@ auto ESTAGE = eStages::WELCOME;
 auto TSTAGE = tStages::ITI;
 bool experimentRunning{false};
 
-char g_bpl{'0'}; // global button state
+char g_bpl{0}; // global button state
 
 HWND g_hWnd = nullptr;
+spgxyz::stopwatch segmentTimer;
+HBRUSH g_brush = CreateSolidBrush(RGB(192, 192, 192));
+HBRUSH g_wbrush = CreateSolidBrush(RGB(255, 255, 255));
+int g_TrialCounter = 0;
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                       _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine,
                       _In_ int nCmdShow) {
@@ -206,7 +211,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam,
     EndPaint(hWnd, &ps);
   } break;
   case WM_SYSCHAR:
-    if (0x0001 & GetKeyState(0x51))
+    if (0x0001 & GetKeyState(VK_END))
       closeDown();
     return 0;
   case WM_DESTROY:
@@ -257,15 +262,17 @@ void IGTButton::hide() { ShowWindow(hw_, SW_HIDE); }
 std::string IGTButton::getLabel() { return label_; }
 
 ExptParams::ExptParams(std::wstring f, int id) : id_(id), f_(getstr(f)) {
-  auto lines = spgxyz::readFile(f_);
-  if (lines.size() != 5) {
+  auto lines = spgxyz::readFile(f_); // read parameters
+  if (lines.size() != 7) {
     OK = false;
     return;
   }
-  auto ilines = spgxyz::readFile(f_ + "_Inst");
+  auto ilines = spgxyz::readFile(f_ + "_Inst"); // read instructions
   for (auto s : ilines)
     instructions.append(s + "\n\n");
-  for (int i = 0; i < 4; ++i) {
+
+  // process parameters
+  for (int i = 0; i < 4; ++i) { // four deck lines
     auto split = spgxyz::splitStr(lines[0], "\\s+");
     if (split.size() != 5) {
       OK = false;
@@ -275,7 +282,9 @@ ExptParams::ExptParams(std::wstring f, int id) : id_(id), f_(getstr(f)) {
                    std::make_tuple(std::stod(split[1]), std::stod(split[2]),
                                    std::stod(split[3]), std::stod(split[4])));
   } // for
-  nt = std::stoi(lines[4]);
+  iti = std::stod(lines[4]);
+  fbDuration = std::stod(lines[5]);
+  nt = std::stoi(lines[6]);
   if (id_ >= 0)
     OK = true; // if file opened,read and ID>=0
 }
@@ -347,7 +356,7 @@ std::string getButton(HWND hWnd, std::vector<IGTButton> &buttons) {
     if (b.getHandle() == hWnd)
       return b.getLabel();
   }
-  return "not a deck";
+  return "";
 }
 
 bool experiment() {
@@ -364,33 +373,40 @@ bool experiment() {
                MB_SYSTEMMODAL | MB_OK | MB_SETFOREGROUND);
 
     ESTAGE = increment<eStages>(ESTAGE);
-    {
+    clearScreen(g_hWnd, g_brush);
+    segmentTimer.start();
 
-      HDC hdc = GetDC(g_hWnd);
-      DrawText(hdc, getwstr(messages["clkMsg"]).c_str(), -1, &g_MsgRect1,
-               DT_CENTER || DT_TOP);
-      ReleaseDC(g_hWnd,hdc);
-      showButtons(buttons);
-    }
     break;
   case eStages::INTASK:
     switch (TSTAGE) {
     case tStages::ITI: {
-
-      HDC hdc = GetDC(g_hWnd);
-      DrawText(hdc, getwstr(std::string{g_bpl}).c_str(), -1, &g_MsgRect2,
-               DT_CENTER || DT_TOP);
-      ReleaseDC(g_hWnd, hdc);
-
-      TSTAGE = increment<tStages>(TSTAGE);
-    }
-      break;
+      segmentTimer.stop();
+      if (segmentTimer.read() > params.getITI()) {
+        showTrial(g_hWnd);
+        TSTAGE = increment<tStages>(TSTAGE);
+      } else
+        segmentTimer.resume();
+    } break;
     case tStages::SHOWDECKS:
-      TSTAGE = increment<tStages>(TSTAGE);
+      if (g_bpl) {
+        HDC hdc = GetDC(g_hWnd);
+        DrawText(hdc, getwstr(std::string{g_bpl}).c_str(), -1, &g_MsgRect2,
+                 DT_CENTER || DT_TOP);
+        ReleaseDC(g_hWnd, hdc);
+        g_bpl = 0;
+        hideButtons(buttons);
+        clearScreen(g_hWnd, g_brush);
+        segmentTimer.stop();
+        segmentTimer.start();
+        TSTAGE = increment<tStages>(TSTAGE);
+      }
       break;
     case tStages::FEEDBACK:
+       // if atend ESTAGE = increment<eStages>(ESTAGE);
+      g_TrialCounter++;
+      if (g_TrialCounter > params.getNT())
+        ESTAGE = increment<eStages>(ESTAGE);
       TSTAGE = increment<tStages>(TSTAGE);
-      // if atend ESTAGE = increment<eStages>(ESTAGE);
       break;
     }
     break;
@@ -404,3 +420,17 @@ bool experiment() {
 }
 
 void render() {}
+
+void clearScreen(HWND hw, HBRUSH hb) {
+  RECT rect;
+  GetClientRect(hw, &rect);
+  FillRect(GetDC(hw), &rect, hb);
+}
+
+void showTrial(HWND hw) {
+  HDC hdc = GetDC(g_hWnd);
+  DrawText(hdc, getwstr(messages["clkMsg"]).c_str(), -1, &g_MsgRect1,
+           DT_CENTER || DT_TOP);
+  ReleaseDC(g_hWnd, hdc);
+  showButtons(buttons);
+}
