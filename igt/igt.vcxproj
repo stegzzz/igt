@@ -142,17 +142,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\workspace\cpp2020\gutils\include\stopwatch.h" />
-    <ClInclude Include="..\..\..\..\workspace\cpp2020\gutils\include\utils.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="igt.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="stopwatch.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\workspace\cpp2020\gutils\src\stopwatch.cpp" />
-    <ClCompile Include="..\..\..\..\workspace\cpp2020\gutils\src\utils.cpp" />
     <ClCompile Include="igt.cpp" />
+    <ClCompile Include="stopwatch.cpp" />
+    <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="igt.rc" />

@@ -17,6 +17,8 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 
 std::vector<IGTButton> buttons;
+std::vector<TData> results;
+TData g_TData;
 int g_w;
 int g_h;
 RECT g_MsgRect1;
@@ -30,17 +32,28 @@ ExptParams params;
 std::map<std::string, std::string> messages;
 std::map<std::string, LPRECT> msgRects;
 
-auto ESTAGE = eStages::WELCOME;
-auto TSTAGE = tStages::ITI;
-bool experimentRunning{false};
+eStages ESTAGE;
+tStages TSTAGE;
+bool experimentRunning;
 
-char g_bpl{0}; // global button state
+char g_bpl; // global button state
 
 HWND g_hWnd = nullptr;
 spgxyz::stopwatch segmentTimer;
-HBRUSH g_brush = CreateSolidBrush(RGB(192, 192, 192));
-HBRUSH g_wbrush = CreateSolidBrush(RGB(255, 255, 255));
-int g_TrialCounter = 0;
+spgxyz::MyMTRNG g_mtrng;
+auto g_rng = g_mtrng.getRNG();
+std::uniform_real_distribution g_urd{0.0, 1.0};
+
+COLORREF gray;
+COLORREF white;
+COLORREF bkgnd;
+
+HBRUSH g_brush;
+HBRUSH g_wbrush;
+
+int g_TrialCounter;
+double g_balance;
+std::string g_currency;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                       _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine,
@@ -164,8 +177,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam,
     GetClientRect(hWnd, &rect);
     initCoords(rect);
     initMessages(messages, msgRects);
-    initButtons(hWnd, buttons);
-
     int narg;
     auto cla = CommandLineToArgvW(GetCommandLine(), &narg);
     if (narg != 3) {
@@ -178,8 +189,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam,
     }
 
     params = std::move(ExptParams{cla[1], std::stoi(cla[2])});
-    if (!params.isOK())
+    if (!params.isOK()) {
       throw std::runtime_error{"experiment parameters not initialised"};
+      closeDown();
+    }
+
+    initButtons(hWnd, buttons, params);
+    initVars(params);
+
     break;
   }
   case WM_COMMAND: {
@@ -261,33 +278,74 @@ void IGTButton::show() { ShowWindow(hw_, SW_SHOW); }
 void IGTButton::hide() { ShowWindow(hw_, SW_HIDE); }
 std::string IGTButton::getLabel() { return label_; }
 
-ExptParams::ExptParams(std::wstring f, int id) : id_(id), f_(getstr(f)) {
-  auto lines = spgxyz::readFile(f_); // read parameters
-  if (lines.size() != 7) {
+ExptParams::ExptParams(std::wstring f, int id)
+    : id_(id), f_(getstr(f)), iti(0), fbDuration(0), balance(0) {
+
+  try {
+    auto lines = spgxyz::readFile(f_); // read parameters
+    if (lines.size() != 9)
+      throw std::exception{"need 9 lines"};
+    // process parameters
+    for (int i = 0; i < 4; ++i) { // four deck lines
+      auto split = spgxyz::splitStr(lines[i], "\\s+");
+      if (split.size() != 5)
+        throw std::exception{"need 5 valid fields in deck specification"};
+      if (split[0].length()!=1)
+        throw std::exception{"deck label must be single character"};
+      labels.push_back(split[0]);
+      params.emplace(split[0],
+                     std::make_tuple(std::stod(split[1]), std::stod(split[2]),
+                                     std::stod(split[3]), std::stod(split[4])));
+    } // for
+    iti = std::stod(lines[4]);
+    fbDuration = std::stod(lines[5]);
+    nt = std::stoi(lines[6]);
+    balance = std::stod(lines[7]);
+    currency = lines[8];
+
+  } catch (std ::exception e) {
+    MessageBox(NULL, getwstr(std::string{"Error! "} + e.what()).c_str(),
+               getwstr("Could not open/process file: " + f_).c_str(),
+               MB_SYSTEMMODAL | MB_ICONSTOP | MB_SETFOREGROUND);
     OK = false;
     return;
   }
-  auto ilines = spgxyz::readFile(f_ + "_Inst"); // read instructions
-  for (auto s : ilines)
-    instructions.append(s + "\n\n");
 
-  // process parameters
-  for (int i = 0; i < 4; ++i) { // four deck lines
-    auto split = spgxyz::splitStr(lines[0], "\\s+");
-    if (split.size() != 5) {
-      OK = false;
-      return;
-    }
-    params.emplace(split[0],
-                   std::make_tuple(std::stod(split[1]), std::stod(split[2]),
-                                   std::stod(split[3]), std::stod(split[4])));
-  } // for
-  iti = std::stod(lines[4]);
-  fbDuration = std::stod(lines[5]);
-  nt = std::stoi(lines[6]);
+  try {
+    auto ilines = spgxyz::readFile(f_ + "_Inst"); // read instructions
+    for (auto s : ilines)
+      instructions.append(s + "\n\n");
+  } catch (std ::exception e) {
+    MessageBox(NULL, getwstr(std::string{"Error! "} + e.what()).c_str(),
+               getwstr("Could not open/process file: " + f_).c_str(),
+               MB_SYSTEMMODAL | MB_ICONSTOP | MB_SETFOREGROUND);
+    OK = false;
+    return;
+  }
+
+  try {
+    auto elines = spgxyz::readFile(f_ + "_EndMsg"); // read endmsg
+    for (auto s : elines)
+      endMsg.append(s + "\n\n");
+  } catch (std ::exception e) {
+    MessageBox(NULL, getwstr(std::string{"Error! "} + e.what()).c_str(),
+               getwstr("Could not open/process file: " + f_).c_str(),
+               MB_SYSTEMMODAL | MB_ICONSTOP | MB_SETFOREGROUND);
+    OK = false;
+    return;
+  }
+
   if (id_ >= 0)
     OK = true; // if file opened,read and ID>=0
 }
+
+  std::tuple<double, double, double, double> ExptParams::getParams(std::string id) const {
+  auto it = params.find(id);
+  if (it != params.end())
+    return it->second;
+  else
+    throw std::runtime_error{std::string{"invalid id passed into "} + __func__};
+  }
 
 void initMessages(std::map<std::string, std::string> &mm,
                   std::map<std::string, LPRECT> &mr) {
@@ -301,12 +359,14 @@ void initMessages(std::map<std::string, std::string> &mm,
       std::make_pair("over", "Experiment over, please call the experimenter "));
   mr.emplace(std::make_pair("over", &g_MsgRect1));
 
-  mm.emplace(std::make_pair("totE", "Total earnings: "));
-  mr.emplace(std::make_pair("totE", &g_MsgRect3));
+  mm.emplace(std::make_pair("bal", "Your balance is: "));
+  mr.emplace(std::make_pair("bal", &g_MsgRect3));
   mm.emplace(std::make_pair("yw", "You win: "));
   mr.emplace(std::make_pair("yw", &g_MsgRect2));
   mm.emplace(std::make_pair("yl", "You lose: "));
   mr.emplace(std::make_pair("yl", &g_MsgRect2));
+  mm.emplace(std::make_pair("be", "Break even! "));
+  mr.emplace(std::make_pair("be", &g_MsgRect2));
 
   mm.emplace(std::make_pair("cc", "click to continue"));
 }
@@ -331,15 +391,33 @@ void initCoords(RECT rect) {
   g_MsgRect3.bottom = (5 * g_h) / 6;
 }
 
-void initButtons(HWND hWnd, std::vector<IGTButton> &buttons) {
+void initButtons(HWND hWnd, std::vector<IGTButton> &buttons,
+                 ExptParams const &p) {
   int bw = g_w / 9;
+  auto labels = p.getButtonIDLabels();
   buttons.clear();
-  buttons.emplace_back(hWnd, std::string("A"), bw, g_h / 3, bw, bw);
-  buttons.emplace_back(hWnd, std::string("B"), 3 * bw, g_h / 3, bw, bw);
-  buttons.emplace_back(hWnd, std::string("C"), 5 * bw, g_h / 3, bw, bw);
-  buttons.emplace_back(hWnd, std::string("D"), 7 * bw, g_h / 3, bw, bw);
+  buttons.push_back({hWnd, labels[0], bw, g_h / 3, bw, bw});
+  buttons.push_back({hWnd, labels[1], 3 * bw, g_h / 3, bw, bw});
+  buttons.push_back({hWnd, labels[2], 5 * bw, g_h / 3, bw, bw});
+  buttons.push_back({hWnd, labels[3], 7 * bw, g_h / 3, bw, bw});
   hideButtons(buttons);
 }
+
+void initVars(ExptParams const &p) {
+  g_TrialCounter = 0;
+  g_balance = p.getStartBalance();
+  g_currency = p.getCurrency();
+  ESTAGE = eStages::WELCOME;
+  TSTAGE = tStages::ITI;
+  experimentRunning = false;
+  gray = RGB(192, 192, 192);
+  white = RGB(255, 255, 255);
+  bkgnd = white;
+  g_brush= CreateSolidBrush(gray);
+  g_wbrush = CreateSolidBrush(white);
+  g_bpl = 0;
+}
+
 void hideButtons(std::vector<IGTButton> &buttons) {
   for (auto &b : buttons)
     b.hide();
@@ -349,7 +427,10 @@ void showButtons(std::vector<IGTButton> &buttons) {
     b.show();
 }
 
-void closeDown() { experimentRunning = false; }
+void closeDown() {
+  ESTAGE = eStages::END;
+  experimentRunning = false;
+}
 
 std::string getButton(HWND hWnd, std::vector<IGTButton> &buttons) {
   for (auto b : buttons) {
@@ -374,52 +455,101 @@ bool experiment() {
 
     ESTAGE = increment<eStages>(ESTAGE);
     clearScreen(g_hWnd, g_brush);
-    segmentTimer.start();
+    segmentTimer.start(); // start with an ITI
 
     break;
   case eStages::INTASK:
+
     switch (TSTAGE) {
     case tStages::ITI: {
       segmentTimer.stop();
       if (segmentTimer.read() > params.getITI()) {
         showTrial(g_hWnd);
+        HDC hdc = GetDC(g_hWnd);
+        auto buff = SetBkMode(hdc, TRANSPARENT);
+        DrawText(hdc, getwstr(messages["bal"]+fmt(g_balance,params)).c_str(), -1, msgRects["bal"],
+                 DT_CENTER || DT_TOP);
+        SetBkMode(hdc, buff);
+        ReleaseDC(g_hWnd, hdc);
         TSTAGE = increment<tStages>(TSTAGE);
+        g_TData.ID = params.getID();
+        g_TData.TN = g_TrialCounter;
       } else
         segmentTimer.resume();
     } break;
     case tStages::SHOWDECKS:
-      if (g_bpl) {
+      if (g_bpl) { // a deck has been clicked, give feedback
+        InvalidateRect(g_hWnd, msgRects["bal"], true);
+        UpdateWindow(g_hWnd);
         HDC hdc = GetDC(g_hWnd);
-        DrawText(hdc, getwstr(std::string{g_bpl}).c_str(), -1, &g_MsgRect2,
+        auto buff = SetBkMode(hdc, TRANSPARENT);
+        auto [win, lose] = getFeedBack(std::string{g_bpl}, params);
+        auto net = win - lose;
+        if (net>0)
+          DrawText(hdc,
+                   getwstr(messages["yw"] + fmt(net, params)).c_str(), -1,
+                   msgRects["yw"],
                  DT_CENTER || DT_TOP);
+        if (net < 0)
+          DrawText(hdc, getwstr(messages["yl"] +fmt(std::abs(net), params)).c_str(), -1,
+                   msgRects["yl"],
+                   DT_CENTER || DT_TOP);
+        if (net == 0)
+          DrawText(hdc, getwstr(messages["be"]).c_str(), -1, msgRects["be"],
+                   DT_CENTER || DT_TOP);
+        g_balance += net;
+ 
+        DrawText(hdc, getwstr(messages["bal"] + fmt(g_balance, params)).c_str(),
+                 -1, msgRects["bal"], DT_CENTER || DT_TOP);
+        SetBkMode(hdc, buff);
         ReleaseDC(g_hWnd, hdc);
+
+        g_TData.deck = g_bpl;
+        g_TData.win = win;
+        g_TData.loss = lose;
+        g_TData.net = net;
+        g_TData.balance = g_balance;
+        g_TData.dts = spgxyz::DTS();
+        results.push_back(g_TData);
         g_bpl = 0;
-        hideButtons(buttons);
-        clearScreen(g_hWnd, g_brush);
+
         segmentTimer.stop();
-        segmentTimer.start();
+        segmentTimer.start();//start feedback duration timer
+       
         TSTAGE = increment<tStages>(TSTAGE);
       }
       break;
     case tStages::FEEDBACK:
-       // if atend ESTAGE = increment<eStages>(ESTAGE);
-      g_TrialCounter++;
-      if (g_TrialCounter > params.getNT())
-        ESTAGE = increment<eStages>(ESTAGE);
-      TSTAGE = increment<tStages>(TSTAGE);
+      segmentTimer.stop();
+      if (segmentTimer.read() > params.getFBD()) {
+        hideButtons(buttons);
+        clearScreen(g_hWnd, g_brush);
+        g_TrialCounter++;
+        if (g_TrialCounter >= params.getNT()) {
+          ESTAGE = increment<eStages>(ESTAGE);
+          clearScreen(g_hWnd, g_wbrush);
+        }
+        TSTAGE = increment<tStages>(TSTAGE);
+        segmentTimer.start();//for the next ITI
+      } else
+        segmentTimer.resume();
       break;
     }
     break;
+
   case eStages::ENDMSG:
+    writeData(params.getDataFN(), results);
+    MessageBox(NULL, getwstr(params.getEndMsg()).c_str(),
+               getwstr(messages["cc"]).c_str(),
+               MB_SYSTEMMODAL | MB_OK | MB_SETFOREGROUND);
+    ESTAGE = increment<eStages>(ESTAGE);
     break;
   case eStages::END:
     return false;
   }
-  render();
   return true;
 }
 
-void render() {}
 
 void clearScreen(HWND hw, HBRUSH hb) {
   RECT rect;
@@ -429,8 +559,39 @@ void clearScreen(HWND hw, HBRUSH hb) {
 
 void showTrial(HWND hw) {
   HDC hdc = GetDC(g_hWnd);
+  auto buff = SetBkMode(hdc, TRANSPARENT);
   DrawText(hdc, getwstr(messages["clkMsg"]).c_str(), -1, &g_MsgRect1,
            DT_CENTER || DT_TOP);
+  SetBkMode(hdc, buff);
   ReleaseDC(g_hWnd, hdc);
   showButtons(buttons);
 }
+
+std::pair<double, double> getFeedBack(std::string bl, ExptParams const  & ep) {
+  auto [wa, wp, la, lp] = ep.getParams(bl);
+  auto gain = 0.0;
+  if (g_urd(g_rng) < wp)
+    gain += wa;
+  auto loss = 0.0;
+  if (g_urd(g_rng) < lp)
+    loss += la;
+  return std::make_pair(gain, loss);
+}
+
+std::string fmt(double a, ExptParams const& ep) {
+  std::ostringstream marker;
+  marker.precision(2);
+  marker << std::fixed << a << "  " << ep.getCurrency();
+  return marker.str();
+}
+
+void writeData(std::string f, std::vector<TData> const& data) {
+  std::ofstream ouf{f,std::ios::app};
+  if (!ouf)
+    throw std::runtime_error{"cannot open file: " + f + "in " + __func__};
+  for (auto &t : data) {
+    ouf << t.ID << "\t" << t.TN << "\t" << t.deck << "\t" << t.win << "\t"
+        << t.loss << "\t" << t.net << "\t" << t.balance << "\t" << t.dts;
+  }
+  ouf.flush();
+  }
