@@ -14,7 +14,17 @@
 #endif
 #include <cassert>
 #include <chrono>
-
+/**
+ * @file stopwatch.h, .cpp
+ * @author Steven Glautier
+ * @copyright Steven Glautier 1998-2022
+ * @section Licence
+ * Creative Commons Attribution 4.0 International Public License
+ * every effort is made to ensure this software works correctly but absolutely
+ * no guarantees are made please report errors and contact Steven Glautier in
+ * case of difficulty spgxyz@gmail.com
+ * @section Description
+ */
 namespace spgxyz {
 /**
  * @brief stopwatch start, stop, read, read... start, stop, read, read... or start, stop, read, resume, stop, read, resume

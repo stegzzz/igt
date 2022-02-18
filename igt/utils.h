@@ -42,7 +42,7 @@ DECLSPEC extern const size_t smallBuff;    // = 256;
 DECLSPEC extern const size_t largeBuff;    // = 1024;
 DECLSPEC extern const size_t hugeBuff;     //= 4096;
 /**
- * @file utils.h
+ * @file utils.h, .cpp
  * @author Steven Glautier
  * @copyright Steven Glautier 1998-2022
  * @section Licence
@@ -449,6 +449,35 @@ constexpr typename std::underlying_type<E>::type to_underlying(E e) {
 }
 
 /**
+ * @brief same as to_underying, only included to avoid breaking some code -- should be able to use using declaration?
+ * @tparam E 
+ * @param e 
+ * @return 
+*/
+template <typename E>
+constexpr typename std::underlying_type<E>::type getEnumValue(E e) {
+  return static_cast<typename std::underlying_type<E>::type>(e);
+}
+
+/**
+ * @brief increment an enum class value looping back to start if it hits value
+ * LAST
+ *
+ * enum must include LAST
+ */
+template <class T> T increment(T val) {
+  auto buff = spgxyz::to_underlying(val);
+  buff++;
+  T result;
+  if (buff == spgxyz::to_underlying(T::LAST))
+    result = static_cast<T>(0);
+  else
+    result = static_cast<T>(buff);
+  return result;
+}
+
+
+/**
  * @brief extract an integer or double from string between two delimiters
  *
  * double cp=0
@@ -477,10 +506,7 @@ void extractFromString(std::string const &str, std::string const &delim1,
     result = std::stod(ss); // or floating point
 }
 
-template <typename E>
-constexpr typename std::underlying_type<E>::type getEnumValue(E e) {
-  return static_cast<typename std::underlying_type<E>::type>(e);
-}
+
 
 /**
  * @brief delete the file, checks for existence first

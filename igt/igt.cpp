@@ -24,6 +24,7 @@ int g_h;
 RECT g_MsgRect1;
 RECT g_MsgRect2;
 RECT g_MsgRect3;
+RECT g_MsgRect4;
 std::string cfgFile;
 int participantID;
 bool paramCheck = false;
@@ -143,14 +144,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
   hInst = hInstance; // Store instance handle in our global variable
 
   HWND hWnd =
-      CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
+      CreateWindow(szWindowClass, szTitle, WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_THICKFRAME, 0,
                    0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+  auto hMenu =GetMenu(hWnd);
+  DeleteMenu(hMenu, SC_CLOSE, MF_BYCOMMAND);//https://cboard.cprogramming.com/windows-programming/5724-disabling-window-x-button-please-help.html
+  LONG style = GetWindowLong(hWnd, GWL_STYLE);
+  style ^= WS_SYSMENU;
+  SetWindowLong(hWnd, GWL_STYLE, style);
 
   if (!hWnd) {
     return FALSE;
   }
 
-  ShowWindow(hWnd, nCmdShow);
+  ShowWindow(hWnd, SW_MAXIMIZE);
   UpdateWindow(hWnd);
 
   g_hWnd = hWnd;
@@ -205,17 +211,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam,
     switch (wmId) {
     case IDM_ABOUT:
       DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-      break;
+      return 0;
     case IDM_EXIT:
-      DestroyWindow(hWnd);
-      break;
+      // DestroyWindow(hWnd);
+      return 0;
       // default:
       //  return DefWindowProc(hWnd, message, wParam, lParam);
     }
     int hwwp = HIWORD(wParam);
     switch (hwwp) {
     case BN_CLICKED:
-      g_bpl = getButton((HWND)lParam, buttons).at(0);
+      if (TSTAGE == tStages::SHOWDECKS)
+        g_bpl = getButton((HWND)lParam, buttons).at(0);
       break;
     default:
       return DefWindowProc(hWnd, message, wParam, lParam);
@@ -227,12 +234,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
     EndPaint(hWnd, &ps);
   } break;
-  case WM_SYSCHAR:
-    if (0x0001 & GetKeyState(VK_END))
+  case WM_KEYDOWN:
+    if ((wParam == 0x51) && GetKeyState(VK_CONTROL))
       closeDown();
     return 0;
   case WM_DESTROY:
-    PostQuitMessage(0);
+    //PostQuitMessage(0);
     break;
   default:
     return DefWindowProc(hWnd, message, wParam, lParam);
@@ -290,7 +297,7 @@ ExptParams::ExptParams(std::wstring f, int id)
       auto split = spgxyz::splitStr(lines[i], "\\s+");
       if (split.size() != 5)
         throw std::exception{"need 5 valid fields in deck specification"};
-      if (split[0].length()!=1)
+      if (split[0].length() != 1)
         throw std::exception{"deck label must be single character"};
       labels.push_back(split[0]);
       params.emplace(split[0],
@@ -339,13 +346,14 @@ ExptParams::ExptParams(std::wstring f, int id)
     OK = true; // if file opened,read and ID>=0
 }
 
-  std::tuple<double, double, double, double> ExptParams::getParams(std::string id) const {
+std::tuple<double, double, double, double>
+ExptParams::getParams(std::string id) const {
   auto it = params.find(id);
   if (it != params.end())
     return it->second;
   else
     throw std::runtime_error{std::string{"invalid id passed into "} + __func__};
-  }
+}
 
 void initMessages(std::map<std::string, std::string> &mm,
                   std::map<std::string, LPRECT> &mr) {
@@ -367,6 +375,8 @@ void initMessages(std::map<std::string, std::string> &mm,
   mr.emplace(std::make_pair("yl", &g_MsgRect2));
   mm.emplace(std::make_pair("be", "Break even! "));
   mr.emplace(std::make_pair("be", &g_MsgRect2));
+  mm.emplace(std::make_pair("tr", "Trials remaining: "));
+  mr.emplace(std::make_pair("tr", &g_MsgRect4));
 
   mm.emplace(std::make_pair("cc", "click to continue"));
 }
@@ -387,8 +397,13 @@ void initCoords(RECT rect) {
 
   g_MsgRect3.left = (g_w / 2) + 10;
   g_MsgRect3.right = g_w - (g_w / 4);
-  g_MsgRect3.top = (4 * g_h) / 6;
-  g_MsgRect3.bottom = (5 * g_h) / 6;
+  g_MsgRect3.top = (8 * g_h) / 12;
+  g_MsgRect3.bottom = (9 * g_h) / 12;
+
+  g_MsgRect4.left = (g_w / 2) + 10;
+  g_MsgRect4.right = g_w - (g_w / 4);
+  g_MsgRect4.top = (10 * g_h) / 12;
+  g_MsgRect4.bottom = (11 * g_h) / 12;
 }
 
 void initButtons(HWND hWnd, std::vector<IGTButton> &buttons,
@@ -413,7 +428,7 @@ void initVars(ExptParams const &p) {
   gray = RGB(192, 192, 192);
   white = RGB(255, 255, 255);
   bkgnd = white;
-  g_brush= CreateSolidBrush(gray);
+  g_brush = CreateSolidBrush(gray);
   g_wbrush = CreateSolidBrush(white);
   g_bpl = 0;
 }
@@ -430,6 +445,8 @@ void showButtons(std::vector<IGTButton> &buttons) {
 void closeDown() {
   ESTAGE = eStages::END;
   experimentRunning = false;
+  writeData(params.getDataFN(), results);
+  PostQuitMessage(0);
 }
 
 std::string getButton(HWND hWnd, std::vector<IGTButton> &buttons) {
@@ -446,14 +463,14 @@ bool experiment() {
     MessageBox(NULL, getwstr(messages["welcome"]).c_str(),
                getwstr(messages["cc"]).c_str(),
                MB_SYSTEMMODAL | MB_OK | MB_SETFOREGROUND);
-    ESTAGE = increment<eStages>(ESTAGE);
+    ESTAGE = spgxyz::increment<eStages>(ESTAGE);
     break;
   case eStages::INTRODUCTION:
     MessageBox(NULL, getwstr(params.getInstructions()).c_str(),
                getwstr(messages["cc"]).c_str(),
                MB_SYSTEMMODAL | MB_OK | MB_SETFOREGROUND);
 
-    ESTAGE = increment<eStages>(ESTAGE);
+    ESTAGE = spgxyz::increment<eStages>(ESTAGE);
     clearScreen(g_hWnd, g_brush);
     segmentTimer.start(); // start with an ITI
 
@@ -467,11 +484,16 @@ bool experiment() {
         showTrial(g_hWnd);
         HDC hdc = GetDC(g_hWnd);
         auto buff = SetBkMode(hdc, TRANSPARENT);
-        DrawText(hdc, getwstr(messages["bal"]+fmt(g_balance,params)).c_str(), -1, msgRects["bal"],
-                 DT_CENTER || DT_TOP);
+        DrawText(hdc, getwstr(messages["bal"] + fmt(g_balance, params)).c_str(),
+                 -1, msgRects["bal"], DT_CENTER || DT_TOP);
+        DrawText(hdc,
+                 getwstr(messages["tr"] +
+                         std::to_string(params.getNT() - g_TrialCounter))
+                     .c_str(),
+                 -1, msgRects["tr"], DT_CENTER || DT_TOP);
         SetBkMode(hdc, buff);
         ReleaseDC(g_hWnd, hdc);
-        TSTAGE = increment<tStages>(TSTAGE);
+        TSTAGE = spgxyz::increment<tStages>(TSTAGE);
         g_TData.ID = params.getID();
         g_TData.TN = g_TrialCounter;
       } else
@@ -485,20 +507,18 @@ bool experiment() {
         auto buff = SetBkMode(hdc, TRANSPARENT);
         auto [win, lose] = getFeedBack(std::string{g_bpl}, params);
         auto net = win - lose;
-        if (net>0)
-          DrawText(hdc,
-                   getwstr(messages["yw"] + fmt(net, params)).c_str(), -1,
-                   msgRects["yw"],
-                 DT_CENTER || DT_TOP);
+        if (net > 0)
+          DrawText(hdc, getwstr(messages["yw"] + fmt(net, params)).c_str(), -1,
+                   msgRects["yw"], DT_CENTER || DT_TOP);
         if (net < 0)
-          DrawText(hdc, getwstr(messages["yl"] +fmt(std::abs(net), params)).c_str(), -1,
-                   msgRects["yl"],
-                   DT_CENTER || DT_TOP);
+          DrawText(hdc,
+                   getwstr(messages["yl"] + fmt(std::abs(net), params)).c_str(),
+                   -1, msgRects["yl"], DT_CENTER || DT_TOP);
         if (net == 0)
           DrawText(hdc, getwstr(messages["be"]).c_str(), -1, msgRects["be"],
                    DT_CENTER || DT_TOP);
         g_balance += net;
- 
+
         DrawText(hdc, getwstr(messages["bal"] + fmt(g_balance, params)).c_str(),
                  -1, msgRects["bal"], DT_CENTER || DT_TOP);
         SetBkMode(hdc, buff);
@@ -514,9 +534,9 @@ bool experiment() {
         g_bpl = 0;
 
         segmentTimer.stop();
-        segmentTimer.start();//start feedback duration timer
-       
-        TSTAGE = increment<tStages>(TSTAGE);
+        segmentTimer.start(); // start feedback duration timer
+
+        TSTAGE = spgxyz::increment<tStages>(TSTAGE);
       }
       break;
     case tStages::FEEDBACK:
@@ -526,11 +546,11 @@ bool experiment() {
         clearScreen(g_hWnd, g_brush);
         g_TrialCounter++;
         if (g_TrialCounter >= params.getNT()) {
-          ESTAGE = increment<eStages>(ESTAGE);
+          ESTAGE = spgxyz::increment<eStages>(ESTAGE);
           clearScreen(g_hWnd, g_wbrush);
         }
-        TSTAGE = increment<tStages>(TSTAGE);
-        segmentTimer.start();//for the next ITI
+        TSTAGE = spgxyz::increment<tStages>(TSTAGE);
+        segmentTimer.start(); // for the next ITI
       } else
         segmentTimer.resume();
       break;
@@ -538,18 +558,17 @@ bool experiment() {
     break;
 
   case eStages::ENDMSG:
-    writeData(params.getDataFN(), results);
+
     MessageBox(NULL, getwstr(params.getEndMsg()).c_str(),
                getwstr(messages["cc"]).c_str(),
                MB_SYSTEMMODAL | MB_OK | MB_SETFOREGROUND);
-    ESTAGE = increment<eStages>(ESTAGE);
+    ESTAGE = spgxyz::increment<eStages>(ESTAGE);
     break;
   case eStages::END:
     return false;
   }
   return true;
 }
-
 
 void clearScreen(HWND hw, HBRUSH hb) {
   RECT rect;
@@ -567,7 +586,7 @@ void showTrial(HWND hw) {
   showButtons(buttons);
 }
 
-std::pair<double, double> getFeedBack(std::string bl, ExptParams const  & ep) {
+std::pair<double, double> getFeedBack(std::string bl, ExptParams const &ep) {
   auto [wa, wp, la, lp] = ep.getParams(bl);
   auto gain = 0.0;
   if (g_urd(g_rng) < wp)
@@ -578,15 +597,15 @@ std::pair<double, double> getFeedBack(std::string bl, ExptParams const  & ep) {
   return std::make_pair(gain, loss);
 }
 
-std::string fmt(double a, ExptParams const& ep) {
+std::string fmt(double a, ExptParams const &ep) {
   std::ostringstream marker;
   marker.precision(2);
   marker << std::fixed << a << "  " << ep.getCurrency();
   return marker.str();
 }
 
-void writeData(std::string f, std::vector<TData> const& data) {
-  std::ofstream ouf{f,std::ios::app};
+void writeData(std::string f, std::vector<TData> const &data) {
+  std::ofstream ouf{f, std::ios::app};
   if (!ouf)
     throw std::runtime_error{"cannot open file: " + f + "in " + __func__};
   for (auto &t : data) {
@@ -594,4 +613,4 @@ void writeData(std::string f, std::vector<TData> const& data) {
         << t.loss << "\t" << t.net << "\t" << t.balance << "\t" << t.dts;
   }
   ouf.flush();
-  }
+}

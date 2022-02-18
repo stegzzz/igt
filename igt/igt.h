@@ -14,12 +14,24 @@
 #include <utility>
 #include <vector>
 #include<fstream>
+#include<random>
 
 #include "framework.h"
 #include "resource.h"
 
 #include <stopwatch.h>
 #include <utils.h>
+/**
+ * @file igt.h, .cpp
+ * @author Steven Glautier
+ * @copyright Steven Glautier 1998-2022
+ * @section Licence
+ * Creative Commons Attribution 4.0 International Public License
+ * every effort is made to ensure this software works correctly but absolutely
+ * no guarantees are made please report errors and contact Steven Glautier in
+ * case of difficulty spgxyz@gmail.com
+ * @section Description
+ */
 
 enum class eStages { WELCOME, INTRODUCTION, INTASK, ENDMSG, END, LAST };
 enum class tStages { ITI, SHOWDECKS, FEEDBACK, LAST };
@@ -55,7 +67,7 @@ public:
  *
  * //clang format off
  * deck parameter lines:
- * label £win pwin £lose plose
+ * label win pwin lose plose
  * char double double double double
  *
  * e.g.
@@ -65,6 +77,8 @@ public:
  * given a parameter file params.txt also need an instructions file
  * params.txt_Inst and a file for end message param.txt_EndMsg. These should be
  * short text files. Enter each paragraph on a separate line.
+ * 
+ * ctrl-Q quits
  */
 class ExptParams {
   bool OK = false;
@@ -146,19 +160,7 @@ std::string getButton(HWND hWnd, std::vector<IGTButton> &buttons);
 std::wstring getwstr(std ::string s) { return {s.begin(), s.end()}; }
 std::string getstr(std::wstring s) { return {s.begin(), s.end()}; }
 
-/**
- * @brief increment an enum class looping back to start if they hit LAST
- */
-template <class T> T increment(T stage) {
-  auto buff = spgxyz::to_underlying(stage);
-  buff++;
-  T result;
-  if (buff == spgxyz::to_underlying(T::LAST))
-    result = static_cast<T>(0);
-  else
-    result = static_cast<T>(buff);
-  return result;
-}
+
 
 /**
  * @brief terminates the experiment
