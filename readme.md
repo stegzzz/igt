@@ -3,8 +3,11 @@ A windows desktop C++ implementation of the Iowa Gambling Task based on original
 Configuration files are also included (params.txt, params.txt_Inst and params.txt_EndMsg). Configuration files must be in the same directory as igt.exe. params.txt parameterised the main experiment, params.txt_Inst and params.txt_EndMsg contain instructions that are presented at the start and end of the experiment, respectively. The file params.txt_Data is produced automatically and data from each run of the experiment is appended. You can have different experiments configured, the general pattern is:
 
 basename.txt         --parameters for the IGT task, required
+
 basename.txt_Inst    --initial instructions, required
+
 basename.txt_EndMsg  --end of experiment instructions, required
+
 basename.txt_Data    --all data collected with parameter/instruction files basename\* will be appended in here, produced automatically
 
 The data file has rows with the following format, one row for each trial:
@@ -12,11 +15,17 @@ The data file has rows with the following format, one row for each trial:
 ID	TN	deck	win	loss	net	balance	dts
 
 ID	-- participant ID, integer entered on command line
+
 TN	-- trial number
+
 deck -- selected deck id
+
 win -- the value of the computed win
+
 loss -- the value of the computed loss
+
 net  -- the net value for the trial (shown to participants)
+
 balance	-- the cumulative balance (shown to participants)
 
 The parameter file parameter file contains 9 lines. 
@@ -24,16 +33,23 @@ The parameter file parameter file contains 9 lines.
 first four lines contain deck parameter lines.
 
 line 5 contains inter-trial-interval (s) double
+
 line 6 contains feedback duration (s) after each trial double
+
 line 7 contains int number of trials
+
 line 8 contains double starting balance
+
 line 9 contain string currency label
 
 deck parameter lines:
+
 label win    pwin   lose   plose
-char  double double double double
+
+(char  double double double double)
 
 e.g.
+
 A    1   0.5     2   0.7
 
 deck A: win amount 1, p=0.5; average win will be 0.5; lose amount 2, p=0.7; average loss will be 1.4; giving an average net loss for deck A of 0.9
