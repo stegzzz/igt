@@ -70,7 +70,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
   MyRegisterClass(hInstance);
 
   // Perform application initialization:
-  if (!InitInstance(hInstance, nCmdShow)) {
+  if (!InitInstance(hInstance, SW_SHOWMAXIMIZED)) {
     return FALSE;
   }
 
@@ -156,7 +156,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
     return FALSE;
   }
 
-  ShowWindow(hWnd, SW_MAXIMIZE);
+  ShowWindow(hWnd, nCmdShow);
+  RECT rect;
+  GetClientRect(hWnd, &rect);
+  initCoords(rect);
+  initMessages(messages, msgRects);
+  initButtons(hWnd, buttons, params);
+
   UpdateWindow(hWnd);
 
   g_hWnd = hWnd;
@@ -179,10 +185,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam,
   switch (message) {
 
   case WM_CREATE: {
-    RECT rect;
-    GetClientRect(hWnd, &rect);
-    initCoords(rect);
-    initMessages(messages, msgRects);
+    
     int narg;
     auto cla = CommandLineToArgvW(GetCommandLine(), &narg);
     if (narg != 3) {
@@ -199,10 +202,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam,
       throw std::runtime_error{"experiment parameters not initialised"};
       closeDown();
     }
-
-    initButtons(hWnd, buttons, params);
     initVars(params);
-
     break;
   }
   case WM_COMMAND: {
@@ -508,18 +508,23 @@ bool experiment() {
         auto [win, lose] = getFeedBack(std::string{g_bpl}, params);
         auto net = win - lose;
         if (net > 0)
-          DrawText(hdc, getwstr(messages["yw"] + fmt(net, params)).c_str(), -1,
+          DrawText(hdc,
+                   getwstr("\n" + messages["yw"] + fmt(net, params)).c_str(),
+                   -1,
                    msgRects["yw"], DT_CENTER || DT_TOP);
         if (net < 0)
           DrawText(hdc,
-                   getwstr(messages["yl"] + fmt(std::abs(net), params)).c_str(),
+                   getwstr("\n" + messages["yl"] + fmt(std::abs(net), params))
+                       .c_str(),
                    -1, msgRects["yl"], DT_CENTER || DT_TOP);
         if (net == 0)
-          DrawText(hdc, getwstr(messages["be"]).c_str(), -1, msgRects["be"],
+          DrawText(hdc, getwstr("\n" + messages["be"]).c_str(), -1,
+                   msgRects["be"],
                    DT_CENTER || DT_TOP);
         g_balance += net;
 
-        DrawText(hdc, getwstr(messages["bal"] + fmt(g_balance, params)).c_str(),
+        DrawText(hdc,
+                 getwstr("\n"+ messages["bal"] + fmt(g_balance, params)).c_str(),
                  -1, msgRects["bal"], DT_CENTER || DT_TOP);
         SetBkMode(hdc, buff);
         ReleaseDC(g_hWnd, hdc);

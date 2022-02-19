@@ -1,6 +1,6 @@
 A windows desktop C++ implementation of the Iowa Gambling Task based on original work of Bechera et al. (1994). The task can be built using the included visual studio project files or it may be possible to run the pre-built binary file -- igt.exe, igt.exe has been tested on windows 10 and should work out of the box but otherwise a build may be needed. igt.exe was built using Visual Studio Community Edition 2019.
 
-Configuration files are also included (params.txt, params.txt_Inst and params.txt_EndMsg). Configuration files must be in the same directory as igt.exe. params.txt parameterised the main experiment, params.txt_Inst and params.txt_EndMsg contain instructions that are presented at the start and end of the experiment, respectively. The file params.txt_Data is produced automatically and data from each run of the experiment is appended. You can have different experiments configured, the general pattern is:
+Configuration files are also included (params.txt, params.txt_Inst and params.txt_EndMsg). Configuration files must be in the same directory as igt.exe. params.txt parameterises the main experiment, params.txt_Inst and params.txt_EndMsg contain instructions that are presented at the start and end of the experiment, respectively. The file params.txt_Data is produced automatically and data from each run of the experiment is appended. You can have different experiments configured, the general pattern is:
 
 basename.txt         --parameters for the IGT task, required
 
